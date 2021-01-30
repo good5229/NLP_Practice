@@ -263,3 +263,103 @@ print(padded)
 - 국소 표현 : 해당 단어 하나만 보고 특정 값을 매핑하여 단어 표현
 - 분산 표현 : 단어를 표현하고자 주변을 참고
 
+## Bag of Words
+
+- 단어의 출현 빈도에만 집중하는 텍스트 데이터의 수치화 표현 방법
+- CountVectorizer 클래스로 BoW를 만들 수 있음
+- 불용어를 제거한 BoW 제작 가능
+
+## TF-IDF
+
+- 문서 단어 행렬(DTM)안에 있는 각 단어에 대한 중요도를 계산할 수 있음
+- 항상 DTM보다 뛰어나진 않음
+- 주로 문서의 유사도를 구하는 작업, 검색 결과의 중요도를 정하는 작업, 문서 내에서 특정 단어의 중요도를 구하는 작업 등에 활용
+
+# 문서 유사도
+
+## 코사인 유사도
+
+- 두 벡터 간의 코사인 각도를 통해 유사도 측정(-1<=x<=1)
+- 문서의 길이가 다른 상황에서 비교적 공정한 비교 가능
+  - 벡터의 크기보다는 방향에 초점
+
+```python
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
+
+data = pd.read_csv('/content/sample_data/movies_metadata.csv', low_memory=False)
+data = data.head(20000)
+
+data['overview'] = data['overview'].fillna('')
+tfidf = TfidfVectorizer(stop_words='english')
+# overview에 대해서 tf-idf 수행
+tfidf_matrix = tfidf.fit_transform(data['overview'])
+print(tfidf_matrix.shape)
+
+indices = pd.Series(data.index, index=data['title']).drop_duplicates()
+print(indices.head())
+
+idx = indices['Father of the Bride Part II']
+print(idx)
+cosine_sim = linear_kernel(tfidf_matrix, tfidf_matrix)
+
+def get_recommendations(title, cosine_sim=cosine_sim):
+    # 선택한 영화의 타이틀로부터 해당되는 인덱스를 받아옵니다. 이제 선택한 영화를 가지고 연산할 수 있습니다.
+    idx = indices[title]
+
+    # 모든 영화에 대해서 해당 영화와의 유사도를 구합니다.
+    sim_scores = list(enumerate(cosine_sim[idx]))
+
+    # 유사도에 따라 영화들을 정렬합니다.
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+
+    # 가장 유사한 10개의 영화를 받아옵니다.
+    sim_scores = sim_scores[1:11]
+
+    # 가장 유사한 10개의 영화의 인덱스를 받아옵니다.
+    movie_indices = [i[0] for i in sim_scores]
+
+    # 가장 유사한 10개의 영화의 제목을 리턴합니다.
+    return data['title'].iloc[movie_indices]
+
+get_recommendations('The Dark Knight Rises')
+
+
+#12481                            The Dark Knight
+#150                               Batman Forever
+#1328                              Batman Returns
+#15511                 Batman: Under the Red Hood
+#585                                       Batman
+#9230          Batman Beyond: Return of the Joker
+#18035                           Batman: Year One
+#19792    Batman: The Dark Knight Returns, Part 1
+#3095                Batman: Mask of the Phantasm
+#10122                              Batman Begins
+#Name: title, dtype: object
+```
+
+
+
+# 토픽 모델링
+
+- 토픽이라는 문서 집합의 추상적인 주제를 발견하기 위한 통계적 모델
+- 텍스트 본문의 숨겨진 의미 구조 파악을 위한 텍스트 마이닝 기법
+
+## 잠재 의미 분석(LSA)
+
+- 문서 단어 행렬(DTM)의 잠재된(Latent) 의미를 이끌어내는 방법
+- 기본적으로 DTM이나 TF-IDF 행렬에 절단된 SVD(truncated SVD)를 사용하여 차원을 축소시키고, 단어들의 잠재적인 의미를 끌어낸다
+
+## 잠재 디레클레 할당(LDA)
+
+- 문서들은 토픽들의 혼합으로 구성되어져 있으며, 토픽들은 확률 분포에 기반하여 단어들을 생성한다고 가정
+- LDA는 단어의 순서는 신경쓰지 않겠다
+- 수행 과정
+  - **1) 사용자는 알고리즘에게 토픽의 개수 k를 알려줍니다.**
+  - **2) 모든 단어를 k개 중 하나의 토픽에 할당합니다.**
+  - **3) 이제 모든 문서의 모든 단어에 대해서 아래의 사항을 반복 진행합니다. (iterative)**
+    - **3-1) 어떤 문서의 각 단어 w는 자신은 잘못된 토픽에 할당되어져 있지만, 다른 단어들은 전부 올바른 토픽에 할당되어져 있는 상태라고 가정합니다. 이에 따라 단어 w는 아래의 두 가지 기준에 따라서 토픽이 재할당됩니다.**
+- LSA vs LDA
+  - LSA : DTM을 차원 축소 하여 축소 차원에서 근접 단어들을 토픽으로 묶는다.
+  - LDA : 단어가 특정 토픽에 존재할 확률과 문서에 특정 토픽이 존재할 확률을 결합확률로 추정하여 토픽을 추출한다.
